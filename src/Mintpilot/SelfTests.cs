@@ -59,9 +59,10 @@ public static class SelfTests
             op.Recipient = Sol.Address(RandomNumberGenerator.GetBytes(32));
             Throws(() => valid.Audit(valid.Keys, Sol.Address(seed), op, null, 0), "reject wrong destination");
 
-            valid.Sign(seed);
+            var zeroTransfer = Sol.Transfer(Sol.Address(seed), receiver, 95000, Sol.SystemProgram);
+            zeroTransfer.Sign(seed);
             var zeroRpc = new Rpc(new Network(new HttpClient(new EmptyAccountSimulation())), "https://unit-test.invalid");
-            zeroRpc.Simulate(valid, Sol.Address(seed), 100000).GetAwaiter().GetResult();
+            zeroRpc.Simulate(zeroTransfer, Sol.Address(seed), 100000).GetAwaiter().GetResult();
             Check(true, "withdraw-all supports a zero-lamport account");
             Throws(() => zeroRpc.Simulate(valid, Sol.Address(seed), 99999).GetAwaiter().GetResult(), "zero-account simulation still enforces the debit cap");
             var directory = Path.Combine(Path.GetTempPath(), "Mintpilot-Checks-" + Guid.NewGuid());

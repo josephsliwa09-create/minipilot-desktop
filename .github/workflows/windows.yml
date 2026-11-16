@@ -36,6 +36,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Live transaction audit failed" }
       - name: Publish portable Windows application
         run: dotnet publish src/Mintpilot/Mintpilot.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output publish
+      - name: Verify the packaged executable
+        run: |
+          foreach ($check in @("--self-test", "--ui-smoke")) {
+            $p = Start-Process -FilePath publish/Mintpilot.exe -ArgumentList $check -PassThru
+            if (-not $p.WaitForExit(60000)) { $p.Kill(); throw "Packaged executable check timed out" }
+            if ($p.ExitCode -ne 0) { Get-Content *-result.txt; throw "Packaged executable check failed" }
+          }
+          Get-Content self-test-result.txt
+          Get-Content ui-smoke-result.txt
       - name: Add setup instructions
         run: Copy-Item README.md publish/README.txt
       - uses: actions/upload-artifact@v4

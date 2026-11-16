@@ -249,7 +249,7 @@ public sealed class MainWindow : Window
         {
             var post = new TextBox { Text = op.Promotion, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0), Background = Brushes.Transparent };
             body.Children.Add(Card(Stack(Text(op.Name + " · $" + op.Symbol, 18, Brushes.White, FontWeights.SemiBold), post,
-                Text("Telegram " + op.TelegramStatus + "  ·  X " + op.XStatus, 12, Accent),
+                Text("Telegram " + op.TelegramStatus + "  ·  X " + op.XStatus, 12, Accent), Text(op.Error, 12, Muted),
                 Actions(Button("Copy post", () => { Clipboard.SetText(op.Promotion); return Task.CompletedTask; }), Button("Publish / retry", async () =>
                 {
                     if ((op.TelegramStatus == "Unknown" || op.XStatus == "Unknown") && MessageBox.Show(this, "A previous post may have arrived. Check your channel first. Retry delivery now?", "Review promotion", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return;
@@ -309,6 +309,7 @@ public sealed class MainWindow : Window
         confirm.Click += (_, _) => { launch = true; dialog.Close(); }; body.Children.Add(confirm); dialog.Content = body; dialog.ShowDialog();
         if (!launch) return;
         var idea = new CoinIdea { Name = name.Text.Trim(), Symbol = symbol.Text.Trim().ToUpperInvariant(), Description = description.Text, Post = post.Text }; idea.Validate();
+        if (image.Text.Trim().Length > 0 && new FileInfo(image.Text).Length > 5_000_000) throw new InvalidOperationException("Choose a PNG under 5 MB.");
         byte[] png = image.Text.Trim().Length == 0 ? Artwork.Render(idea) : File.ReadAllBytes(image.Text);
         if (png.Length > 5_000_000) throw new InvalidOperationException("Choose a PNG under 5 MB.");
         using (var input = new MemoryStream(png)) BitmapFrame.Create(input, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
