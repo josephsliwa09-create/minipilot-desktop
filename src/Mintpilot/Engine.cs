@@ -25,7 +25,7 @@ public sealed class Engine
     private bool _storageFault;
     private DateTimeOffset _lastMarkets;
     private Rpc Rpc => new(_net, State.Settings.RpcUrl);
-    public long Reserved => State.Operations.Where(o => o.Pending && o.Kind == "Create").Sum(o => o.LimitLamports);
+    public long Reserved => State.Operations.Where(o => o.Pending).Sum(o => o.ReservationLamports > 0 ? o.ReservationLamports : o.LimitLamports);
     public long Available => Math.Max(0, (BalanceLamports ?? 0) - Reserved);
 
     public Engine(Vault vault, HttpClient? http = null)
@@ -146,7 +146,7 @@ public sealed class Engine
         var op = new Operation
         {
             Kind = "Create", Name = idea.Name, Symbol = idea.Symbol, Mint = Sol.Address(seed),
-            LimitLamports = Sol.Lamports(s.MaxLaunchSol),
+            LimitLamports = Sol.Lamports(s.MaxLaunchSol), ReservationLamports = Sol.Lamports(s.MaxLaunchSol),
             Promotion = idea.Post + "\nAutomated creator · $" + idea.Symbol + "\nhttps://pump.fun/coin/" + Sol.Address(seed),
             TelegramStatus = s.TelegramEnabled ? "Queued" : "Disabled", XStatus = s.XEnabled ? "Queued" : "Disabled"
         };
@@ -192,7 +192,7 @@ public sealed class Engine
         catch (Exception ex)
         {
             op.Status = "Pending"; op.Error = ex.Message; Persist();
-            Status = "Submission outcome is pending. Checking the saved signature.";
+            Pause(); Status = "Submission outcome is pending. Checking the saved signature.";
         }
     }
     private async Task Reconcile(Rpc rpc)
@@ -238,7 +238,7 @@ public sealed class Engine
             long fee = await rpc.Fee(Sol.Transfer(Address, destination, 1, hash));
             long amount = requested is decimal n ? Sol.Lamports(n) : Available - fee;
             if (amount <= 0 || amount > Available - fee) throw new InvalidOperationException("Withdrawal exceeds available SOL after the network fee and pending launch reservations.");
-            var op = new Operation { Kind = "Withdraw", Name = "SOL withdrawal", Recipient = destination, LimitLamports = amount };
+            var op = new Operation { Kind = "Withdraw", Name = "SOL withdrawal", Recipient = destination, LimitLamports = amount, ReservationLamports = checked(amount + fee) };
             var tx = Sol.Transfer(Address, destination, amount, hash);
             tx.Audit(tx.Keys, Address, op, null, 0);
             op.Signature = tx.Sign(State.Seed); op.Blockhash = hash; op.Raw = Convert.ToBase64String(tx.Raw);

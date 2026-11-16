@@ -1,0 +1,6 @@
+{
+  "name": "Mintpilot Protocol Check",
+  "symbol": "MPCHECK",
+  "description": "An off-chain transaction-builder check. No transaction is submitted.",
+  "image": "https://pump.fun/favicon.ico"
+}

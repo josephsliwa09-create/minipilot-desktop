@@ -1,6 +1,6 @@
 # Mintpilot for Windows
 
-Mintpilot is a native WPF application for Solana mainnet. Download the Mintpilot-Windows-x64 artifact from a successful GitHub Actions run, extract the ZIP, and open Mintpilot.exe on Windows 10 or 11 x64. The application includes its .NET runtime.
+Mintpilot is a native WPF application for Solana mainnet. Download the Mintpilot-Windows-x64 artifact from a successful GitHub Actions run, extract the ZIP, and open Mintpilot.exe on Windows 10 or 11 x64. The application includes its .NET runtime. This is an unsigned development build.
 
 ## First launch
 
@@ -20,7 +20,7 @@ Transfer SOL on Solana mainnet to the address shown in Wallet. Mintpilot request
 
 Signed transactions and their signatures are recorded before submission. Ambiguous submissions are reconciled using the original signature. The app waits for finalization and reads actual fees and wallet debits from on-chain transaction metadata. It pauses after an uncertain or failed operation instead of automatically creating a replacement.
 
-Available SOL excludes pending launch reservations. Withdraw SOL sends spendable SOL after the network fee to the address you enter. Leave the amount blank to withdraw the available maximum. Sell remaining tokens in Launches converts the selected coin's token holdings to SOL through PumpPortal, subject to your configured slippage. Market execution and available liquidity determine sale proceeds.
+Available SOL excludes pending transaction reservations. Withdraw SOL sends spendable SOL after the network fee to the address you enter. Leave the amount blank to withdraw the available maximum. Sell remaining tokens in Launches converts the selected coin's token holdings to SOL through PumpPortal, subject to your configured slippage. Market execution and available liquidity determine sale proceeds.
 
 Autopilot runs while the application is open and Windows is awake. It starts paused after reopening. Closing the application stops future scheduled work. Already submitted transactions remain tracked on reopening.
 

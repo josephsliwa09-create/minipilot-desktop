@@ -43,6 +43,7 @@ public sealed class Settings
             throw new InvalidOperationException("Check the SOL reserve, priority fee, and slippage (0.1–50%).");
         if (IntervalMinutes < 1 || IntervalMinutes > 10080 || MaxDailyLaunches < 1 || MaxDailyLaunches > 100)
             throw new InvalidOperationException("Choose an interval of 1–10080 minutes and 1–100 daily launches.");
+        foreach (decimal amount in new[] { BuySol, MaxLaunchSol, DailyCapSol, ReserveSol, PriorityFeeSol }) Sol.Lamports(amount);
         if (launching && string.IsNullOrWhiteSpace(PinataToken))
             throw new InvalidOperationException("Add your Pinata JWT in Settings for public image and metadata uploads.");
         if (agent && (string.IsNullOrWhiteSpace(AiModel) || (AiProvider == "OpenAI" && string.IsNullOrWhiteSpace(OpenAiKey))))
@@ -92,6 +93,7 @@ public sealed class Operation
     public string TelegramId { get; set; } = "";
     public string XId { get; set; } = "";
     public long LimitLamports { get; set; }
+    public long ReservationLamports { get; set; }
     public long? DebitLamports { get; set; }
     public long? FeeLamports { get; set; }
     public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;

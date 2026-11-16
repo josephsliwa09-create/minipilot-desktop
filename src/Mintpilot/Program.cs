@@ -10,6 +10,7 @@ public static class Program
     public static int Main(string[] args)
     {
         if (args.Contains("--self-test")) return SelfTests.Run();
+        if (args.Contains("--connection-probe")) return ConnectionProbe.Run();
         bool smoke = args.Contains("--ui-smoke");
         using var instance = new Mutex(true, smoke ? "Local\\Mintpilot.Native.Smoke." + Guid.NewGuid() : "Local\\Mintpilot.Native", out bool first);
         if (!first) { MessageBox.Show("Mintpilot is already running.", "Mintpilot"); return 0; }

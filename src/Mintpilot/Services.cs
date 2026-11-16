@@ -75,8 +75,8 @@ public sealed class Rpc(Network net, string url)
         if (result.TryGetProperty("preBalances", out var pre) && pre.ValueKind == JsonValueKind.Array && pre.GetArrayLength() > 0 &&
             result.TryGetProperty("postBalances", out var post) && post.ValueKind == JsonValueKind.Array && post.GetArrayLength() > 0)
             debit = pre[0].GetInt64() - post[0].GetInt64();
-        else if (result.TryGetProperty("accounts", out var accounts) && accounts.ValueKind == JsonValueKind.Array && accounts.GetArrayLength() > 0 && accounts[0].ValueKind != JsonValueKind.Null)
-            debit = before - accounts[0].GetProperty("lamports").GetInt64();
+        else if (result.TryGetProperty("accounts", out var accounts) && accounts.ValueKind == JsonValueKind.Array && accounts.GetArrayLength() > 0)
+            debit = before - (accounts[0].ValueKind == JsonValueKind.Null ? 0 : accounts[0].GetProperty("lamports").GetInt64());
         if (debit is null) throw new InvalidOperationException("RPC did not return the wallet simulation balance. Choose an RPC supporting account simulation.");
         if (debit > limit) throw new InvalidOperationException("Simulated cost " + Sol.Display(debit.Value) + " exceeds the operation limit " + Sol.Display(limit) + ".");
     }

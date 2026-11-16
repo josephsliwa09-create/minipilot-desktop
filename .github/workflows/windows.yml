@@ -29,6 +29,11 @@ jobs:
           if (-not $p.WaitForExit(60000)) { $p.Kill(); throw "Native UI smoke test timed out" }
           if ($p.ExitCode -ne 0) { Get-Content ui-smoke-result.txt; throw "Native UI smoke test failed" }
           Get-Content ui-smoke-result.txt
+      - name: Check live pump.fun transaction preparation without broadcasting
+        run: |
+          dotnet run --project src/Mintpilot/Mintpilot.csproj --configuration Release --no-build -- --connection-probe
+          Get-Content connection-probe-result.txt
+          if ($LASTEXITCODE -ne 0) { throw "Live transaction audit failed" }
       - name: Publish portable Windows application
         run: dotnet publish src/Mintpilot/Mintpilot.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output publish
       - name: Add setup instructions

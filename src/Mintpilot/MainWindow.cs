@@ -264,7 +264,7 @@ public sealed class MainWindow : Window
             Text("Send SOL on Solana mainnet to this address. This app signs transactions locally.", 13, Muted),
             Actions(Button("Copy address", () => { Clipboard.SetText(_engine.Address); return Task.CompletedTask; }), Button("Sync balance", _engine.Poll)))));
         body.Children.Add(Card(Stack(Text("Spendable SOL", 13, Muted), Text(_engine.BalanceLamports is null ? "Connecting…" : Sol.Display(_engine.Available), 35, Brushes.White, FontWeights.SemiBold),
-            Text("Pending launch reservation " + Sol.Display(_engine.Reserved), 12, Muted),
+            Text("Pending transaction reservations " + Sol.Display(_engine.Reserved), 12, Muted),
             Actions(Button("Withdraw SOL", WithdrawDialog, true), Button("Back up wallet", BackupDialog), Button("Restore backup", RestoreDialog)))));
         body.Children.Add(Text("Withdrawals send available SOL after the network fee. Sell token holdings from Launches to convert them to SOL.", 12, Muted));
         body.Children.Add(OperationGrid(_engine.State.Operations.AsEnumerable().Reverse()));

@@ -59,6 +59,11 @@ public static class SelfTests
             op.Recipient = Sol.Address(RandomNumberGenerator.GetBytes(32));
             Throws(() => valid.Audit(valid.Keys, Sol.Address(seed), op, null, 0), "reject wrong destination");
 
+            valid.Sign(seed);
+            var zeroRpc = new Rpc(new Network(new HttpClient(new EmptyAccountSimulation())), "https://unit-test.invalid");
+            zeroRpc.Simulate(valid, Sol.Address(seed), 100000).GetAwaiter().GetResult();
+            Check(true, "withdraw-all supports a zero-lamport account");
+            Throws(() => zeroRpc.Simulate(valid, Sol.Address(seed), 99999).GetAwaiter().GetResult(), "zero-account simulation still enforces the debit cap");
             var directory = Path.Combine(Path.GetTempPath(), "Mintpilot-Checks-" + Guid.NewGuid());
             Directory.CreateDirectory(directory);
             try
@@ -184,4 +189,17 @@ public static class SelfTests
         private static HttpResponseMessage Response(object value) => new(HttpStatusCode.OK)
         { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
     }
+    private sealed class EmptyAccountSimulation : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            using var doc = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+            string method = doc.RootElement.GetProperty("method").GetString()!;
+            object result = method == "getBalance" ? new { value = 100000 } :
+                new { value = new { err = (object?)null, accounts = new object?[] { null } } };
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent(JsonSerializer.Serialize(new { result }), Encoding.UTF8, "application/json") };
+        }
+    }
+
 }
