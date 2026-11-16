@@ -36,31 +36,9 @@ public static class ConnectionProbe
                 mint, denominatedInSol = "true", amount = s.BuySol, slippage = s.Slippage, priorityFee = s.PriorityFeeSol, pool = "pump"
             });
             var keys = await tx.ResolveKeys(rpc);
-            Console.WriteLine("Live unsigned instructions: " + System.Text.Json.JsonSerializer.Serialize(tx.Instructions.Select(ix => new
-            {
-                program = keys[ix.Program], accounts = ix.Accounts.Select(i => keys[i]).ToArray(), data = Convert.ToHexString(ix.Data)
-            })));
-            try
-            {
-                var direct = await net.Json(HttpMethod.Post, "https://fun-block.pump.fun/agents/create-coin", new
-                {
-                    user = wallet, name = idea.Name, symbol = idea.Symbol, uri = op.Uri, solLamports = "10000000",
-                    encoding = "base64", mayhemMode = false, cashback = false, tokenizedAgent = false
-                });
-                Console.WriteLine("Direct Pump builder response fields: " + string.Join(",", direct.EnumerateObject().Select(p => p.Name)));
-                if (direct.TryGetProperty("transaction", out var data) && direct.TryGetProperty("mintPublicKey", out var publicMint))
-                {
-                    var candidate = WireTransaction.Parse(Convert.FromBase64String(data.GetString()!));
-                    var candidateOp = new Operation { Kind = "Create", Mint = publicMint.GetString()!, Uri = op.Uri, LimitLamports = op.LimitLamports };
-                    candidate.Audit(await candidate.ResolveKeys(rpc), wallet, candidateOp, idea, Sol.Lamports(0.011m));
-                    candidate.Sign(walletSeed);
-                    Console.WriteLine("PASS direct Pump builder decoded, audited, and co-signed; no broadcast.");
-                }
-            }
-            catch (Exception directError) { Console.WriteLine("Direct Pump builder: " + directError.Message); }
             tx.Audit(keys, wallet, op, idea, Sol.Lamports(0.011m));
             tx.Sign(walletSeed, mintSeed);
-            File.WriteAllText("connection-probe-result.txt", "PASS PumpPortal returned a live pump.fun create transaction. Native decoding, metadata, fee payer, signers, buy limits, creator and Ed25519 signatures passed. No transaction was broadcast.");
+            File.WriteAllText("connection-probe-result.txt", "PASS PumpPortal returned a live pump.fun create transaction. Native decoding, metadata, fee payer, required signers, routing fee, total buy quote limit, creator and Ed25519 signatures passed. No transaction was broadcast.");
             return 0;
         }
         finally { CryptographicOperations.ZeroMemory(walletSeed); CryptographicOperations.ZeroMemory(mintSeed); }

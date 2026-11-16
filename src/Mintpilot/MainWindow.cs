@@ -366,7 +366,7 @@ public sealed class MainWindow : Window
         var reserve = Field(form, "Wallet SOL reserve for launches", s.ReserveSol.ToString(CultureInfo.InvariantCulture));
         var interval = Field(form, "Minutes between launches", s.IntervalMinutes.ToString());
         var count = Field(form, "Maximum finalized/pending launches per UTC day", s.MaxDailyLaunches.ToString());
-        var slippage = Field(form, "Trade slippage (%)", s.Slippage.ToString(CultureInfo.InvariantCulture));
+        var slippage = Field(form, "Requested trade slippage (%)", s.Slippage.ToString(CultureInfo.InvariantCulture));
         var priority = Field(form, "Priority fee (SOL)", s.PriorityFeeSol.ToString(CultureInfo.InvariantCulture));
         form.Children.Add(Text("AI generation", 20, Brushes.White, FontWeights.SemiBold));
         var provider = new ComboBox { ItemsSource = new[] { "Ollama", "OpenAI" }, SelectedItem = s.AiProvider, Padding = new Thickness(8), Margin = new Thickness(0, 6, 0, 10), Foreground = Brushes.Black };

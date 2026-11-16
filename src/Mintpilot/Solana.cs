@@ -10,6 +10,7 @@ public static class Sol
 {
     public const string SystemProgram = "11111111111111111111111111111111";
     public const string Pump = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
+    public const string PortalRouter = "FAdo9NCw1ssek6Z6yeWzWjhLVsr8uiCwcWNUnKgzTnHe";
     public const string PumpAmm = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA";
     public const string Token = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
     public const string Token2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -212,6 +213,24 @@ public sealed class WireTransaction
                 if (ix.Data[0] == 9 && (ix.Accounts.Length < 3 || keys[ix.Accounts[1]] != wallet || keys[ix.Accounts[2]] != wallet))
                     throw new InvalidDataException("Unexpected token-account close destination.");
                 continue;
+            }
+            if (program == Sol.PortalRouter)
+            {
+                // PumpPortal's current routing envelope retains the Pump argument
+                // order and includes its 50-basis-point local API fee.
+                string action = operation.Kind == "Create" ? "buy" : "sell";
+                var tag = Sol.Discriminator(action); tag[1] = 50;
+                if (ix.Data.Length != 26 || !ix.Data.AsSpan(0, 8).SequenceEqual(tag) ||
+                    BinaryPrimitives.ReadUInt16LittleEndian(ix.Data.AsSpan(24)) != 50 ||
+                    ix.Accounts.Length < 16 || keys[ix.Accounts[2]] != operation.Mint ||
+                    keys[ix.Accounts[6]] != wallet || keys[ix.Accounts[7]] != Sol.SystemProgram ||
+                    (keys[ix.Accounts[8]] != Sol.Token && keys[ix.Accounts[8]] != Sol.Token2022) ||
+                    keys[ix.Accounts[11]] != Sol.Pump || hasTrade)
+                    throw new InvalidDataException("Unexpected PumpPortal routing instruction.");
+                if (operation.Kind == "Create" && BinaryPrimitives.ReadUInt64LittleEndian(ix.Data.AsSpan(16)) > (ulong)operation.LimitLamports)
+                    throw new InvalidDataException("PumpPortal buy quote exceeds the total launch limit.");
+                if (operation.Kind is not ("Create" or "Sell")) throw new InvalidDataException("Unexpected routed operation.");
+                hasTrade = true; continue;
             }
             if (program != Sol.Pump && program != Sol.PumpAmm) throw new InvalidDataException("Unexpected transaction program: " + program);
             if (!ix.Accounts.Any(index => keys[index] == operation.Mint)) throw new InvalidDataException("Unexpected trade mint.");
