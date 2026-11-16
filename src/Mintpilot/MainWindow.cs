@@ -46,7 +46,8 @@ public sealed class MainWindow : Window
         foreach (var (page, icon) in new[] { ("Overview", "▦"), ("Launches", "◇"), ("Promotions", "◉"), ("Wallet", "▤"), ("Settings", "⚙") })
         {
             string selected = page;
-            var button = Button(icon + "   " + page, () => { ShowPage(selected); return Task.CompletedTask; });
+            var button = new Button { Content = icon + "   " + page };
+            button.Click += (_, _) => ShowPage(selected);
             button.HorizontalContentAlignment = HorizontalAlignment.Left; button.Height = 45; button.Margin = new Thickness(0, 4, 0, 4);
             navigation.Children.Add(button); _nav[page] = button;
         }
@@ -142,7 +143,7 @@ public sealed class MainWindow : Window
         var hero = Stack(Text("LAUNCH AGENT", 11, Accent), Text(_engine.Running ? "Autopilot is running" : "Ready when you are", 28, Brushes.White, FontWeights.SemiBold),
             Text("Initial buy " + s.BuySol + " SOL · Up to " + s.MaxLaunchSol + " SOL per launch · " + s.IntervalMinutes + " minute interval", 13, Muted));
         hero.Children.Add(Actions(
-            Button(_engine.Running ? "Ⅱ  Pause agent" : "▷  Start agent", async () => { if (_engine.Running) _engine.Pause(); else { _engine.Start(); await _engine.Poll(); } }, true),
+            Button(_engine.Running ? "Ⅱ  Pause agent" : "▷  Start agent", () => { if (_engine.Running) _engine.Pause(); else { _engine.Start(); _ = _engine.Poll(); } return Task.CompletedTask; }, true),
             Button("+  Launch a coin", LaunchDialog), Button("Sync", _engine.Poll)));
         body.Children.Add(Card(hero));
         var ops = _engine.State.Operations;
