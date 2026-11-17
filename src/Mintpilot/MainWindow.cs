@@ -152,7 +152,7 @@ public sealed class MainWindow : Window
         long todayCommitted = today.Sum(o => o.Pending ? o.LimitLamports : Math.Max(0, o.DebitLamports ?? 0));
         var stats = new[]
         {
-            ("Available wallet", _engine.BalanceLamports is null ? "Connecting…" : Sol.Display(_engine.Available)),
+            ("Available wallet", _engine.BalanceLamports is null ? "Balance unavailable" : Sol.Display(_engine.Available)),
             ("Finalized launches", ops.Count(o => o.Kind == "Create" && o.Status == "Confirmed").ToString()),
             ("Published promotions", ops.Sum(o => (o.XStatus == "Published" ? 1 : 0) + (o.TelegramStatus == "Published" ? 1 : 0)).ToString()),
             ("Launch expenditure", Sol.Display(spent)),
@@ -267,7 +267,7 @@ public sealed class MainWindow : Window
         body.Children.Add(Card(Stack(Text("SOLANA DEPOSIT ADDRESS", 11, Accent), address,
             Text("Send SOL on Solana mainnet to this address. This app signs transactions locally.", 13, Muted),
             Actions(Button("Copy address", () => { Clipboard.SetText(_engine.Address); return Task.CompletedTask; }), Button("Sync balance", _engine.Poll)))));
-        body.Children.Add(Card(Stack(Text("Spendable SOL", 13, Muted), Text(_engine.BalanceLamports is null ? "Connecting…" : Sol.Display(_engine.Available), 35, Brushes.White, FontWeights.SemiBold),
+        body.Children.Add(Card(Stack(Text("Spendable SOL", 13, Muted), Text(_engine.BalanceLamports is null ? "Balance unavailable" : Sol.Display(_engine.Available), 35, Brushes.White, FontWeights.SemiBold),
             Text("Pending transaction reservations " + Sol.Display(_engine.Reserved), 12, Muted),
             Actions(Button("Withdraw SOL", WithdrawDialog, true), Button("Back up wallet", BackupDialog), Button("Restore backup", RestoreDialog)))));
         body.Children.Add(Text("Withdrawals send available SOL after the network fee. Sell token holdings from Launches to convert them to SOL.", 12, Muted));

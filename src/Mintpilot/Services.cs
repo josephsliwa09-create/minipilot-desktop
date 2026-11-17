@@ -51,8 +51,8 @@ public sealed class Rpc(Network net, string url)
     }
     public async Task Mainnet()
     {
-        if ((await Call("getGenesisHash", [])).GetString() != "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
-            throw new InvalidOperationException("This wallet is configured for pump.fun on Solana mainnet. Select a mainnet RPC.");
+        if ((await Call("getGenesisHash", [])).GetString() != "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d")
+            throw new InvalidOperationException("The configured RPC is connected to a different Solana network. Save a mainnet RPC URL in Settings and sync again.");
     }
     public async Task<long> Balance(string wallet) => (await Call("getBalance", [wallet, new { commitment = "confirmed" }])).GetProperty("value").GetInt64();
     public async Task<long> Fee(WireTransaction tx)

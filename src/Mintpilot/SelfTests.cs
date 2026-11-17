@@ -26,6 +26,17 @@ public static class SelfTests
     {
         try
         {
+            using (var mainnetHttp = new HttpClient(new GenesisFixture("5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d")))
+            {
+                var rpc = new Rpc(new Network(mainnetHttp), "https://rpc.example");
+                rpc.Mainnet().GetAwaiter().GetResult();
+                Check(rpc.Balance(Sol.SystemProgram).GetAwaiter().GetResult() == 123456789, "full mainnet genesis permits balance sync");
+            }
+            foreach (var hash in new[] { "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG", "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY" })
+            {
+                using var http = new HttpClient(new GenesisFixture(hash));
+                Throws(() => new Rpc(new Network(http), "https://rpc.example").Mainnet().GetAwaiter().GetResult(), "reject truncated or other-network genesis");
+            }
             var tracked = new Operation();
             Check(!tracked.ObserveExitPrice(0, 30) && tracked.ExitPeakUsd == 0, "missing quote ignored");
             Check(tracked.ObserveExitPrice(1m, 30) && !tracked.ExitTriggered, "first price establishes baseline");
@@ -223,7 +234,7 @@ public static class SelfTests
             }
             object result = method switch
             {
-                "getGenesisHash" => "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                "getGenesisHash" => "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
                 "getBalance" => new { value = _balance },
                 "getSignatureStatuses" => new { value = new object?[] { Finalize ? new { confirmationStatus = "finalized", err = (object?)null } : null } },
                 "isBlockhashValid" => new { value = true },
@@ -236,6 +247,21 @@ public static class SelfTests
         }
         private static HttpResponseMessage Response(object value) => new(HttpStatusCode.OK)
         { Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json") };
+    }
+    private sealed class GenesisFixture(string hash) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            using var doc = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+            object result = doc.RootElement.GetProperty("method").GetString() switch
+            {
+                "getGenesisHash" => hash,
+                "getBalance" => new { value = 123456789L },
+                _ => throw new InvalidOperationException("Unexpected genesis test method")
+            };
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new StringContent(JsonSerializer.Serialize(new { result }), Encoding.UTF8, "application/json") };
+        }
     }
     private sealed class EmptyAccountSimulation : HttpMessageHandler
     {
