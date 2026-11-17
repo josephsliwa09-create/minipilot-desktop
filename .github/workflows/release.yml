@@ -16,9 +16,9 @@ jobs:
     steps:
       - name: Download the verified Windows build
         run: |
-          test "$(gh run view 43984424506 --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
-          test "$(gh run view 43984424506 --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "143d59f92d4b06a9f9508b9fdb97d3e4bec98b1d"
-          gh run download 43984424506 --repo "$GITHUB_REPOSITORY" --name Mintpilot-Windows-x64 --dir package
+          test "$(gh run view 43994227215 --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
+          test "$(gh run view 43994227215 --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)" = "03734962d8d07411c1aa3c3c70b9cd206527fc02"
+          gh run download 43994227215 --repo "$GITHUB_REPOSITORY" --name Mintpilot-Windows-x64 --dir package
           test -f package/Mintpilot.exe
           test -f package/README.txt
       - name: Package the portable application
@@ -32,14 +32,16 @@ jobs:
 
           Extract Mintpilot-Windows.zip and open Mintpilot.exe. Open Wallet for the real SOL deposit address and create an encrypted backup. Configure RPC, Pinata, AI and promotion credentials in Settings.
 
+          Fixes a mainnet identifier comparison that prevented balance sync and displayed Connecting indefinitely. Validates the full genesis hash returned by Solana mainnet and continues to reject devnet/testnet. The balance tile now shows Balance unavailable until a successful sync. Existing local wallet storage is retained by the update.
+
           Enable Automatic exits in Settings to sell the wallet's full position in a launched coin after a configurable drop from its observed USD high. Trailing exits, full-position requests, restart recovery, and settlement were tested with simulated transactions. A funded automatic sale has not been verified.
 
           This unsigned development build requires your own credentials and funding. Funded mainnet launches, withdrawals and live social delivery still require end-to-end verification. Autopilot runs while the app is open and Windows is awake.
           NOTES
-          if gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq .targetCommitish > "$RUNNER_TEMP/target.txt" 2>/dev/null; then
+          if gh release view v1.1.1 --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq .targetCommitish > "$RUNNER_TEMP/target.txt" 2>/dev/null; then
             test "$(cat "$RUNNER_TEMP/target.txt")" = "$GITHUB_SHA"
-            gh release upload v1.1.0 Mintpilot-Windows.zip --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload v1.1.1 Mintpilot-Windows.zip --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create v1.1.0 Mintpilot-Windows.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Mintpilot 1.1 for Windows · Automatic exits" --prerelease --notes-file "$RUNNER_TEMP/release-notes.txt"
+            gh release create v1.1.1 Mintpilot-Windows.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Mintpilot 1.1.1 for Windows · Balance sync fix" --prerelease --notes-file "$RUNNER_TEMP/release-notes.txt"
           fi
-          gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" --json url,assets
+          gh release view v1.1.1 --repo "$GITHUB_REPOSITORY" --json url,assets
