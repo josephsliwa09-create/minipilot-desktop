@@ -37,9 +37,9 @@ jobs:
           This unsigned development build requires your own credentials and funding. Funded mainnet launches, withdrawals and live social delivery still require end-to-end verification. Autopilot runs while the app is open and Windows is awake.
           NOTES
           if gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq .targetCommitish > "$RUNNER_TEMP/target.txt" 2>/dev/null; then
-            test "$(cat "$RUNNER_TEMP/target.txt")" = "143d59f92d4b06a9f9508b9fdb97d3e4bec98b1d"
+            test "$(cat "$RUNNER_TEMP/target.txt")" = "$GITHUB_SHA"
             gh release upload v1.1.0 Mintpilot-Windows.zip --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create v1.1.0 Mintpilot-Windows.zip --repo "$GITHUB_REPOSITORY" --target 143d59f92d4b06a9f9508b9fdb97d3e4bec98b1d --title "Mintpilot 1.1 for Windows · Automatic exits" --prerelease --notes-file "$RUNNER_TEMP/release-notes.txt"
+            gh release create v1.1.0 Mintpilot-Windows.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Mintpilot 1.1 for Windows · Automatic exits" --prerelease --notes-file "$RUNNER_TEMP/release-notes.txt"
           fi
           gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" --json url,assets
