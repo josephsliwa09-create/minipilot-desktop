@@ -47,3 +47,7 @@ dotnet build src/Mintpilot/Mintpilot.csproj -c Release
 dotnet run --project src/Mintpilot/Mintpilot.csproj -c Release -- --self-test
 dotnet publish src/Mintpilot/Mintpilot.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
 ```
+
+## Automatic exits
+
+In Settings, enable automatic exits and choose a drop of 1–99% (initial value 30%). For each finalized launch held by this wallet, the first positive USD quote starts a trailing high. When a new quote falls by the configured percentage or more, Mintpilot queues a sale of 100% of that mint. Launches shows each trigger price or exit status. Missing quotes do not trigger a sale. Monitoring continues while launches are paused and resumes after restart while enabled. The PC must be awake with the app open. Execution depends on available liquidity, fees and slippage, and the sale price can differ from the trigger. The app checks remaining holdings after settlement and limits automatic attempts to three per mint, at least five minutes apart. For an open balance after three attempts, use Sell remaining tokens in Launches. Disabling exits clears saved highs and queued triggers. Submitted transactions continue to settlement.

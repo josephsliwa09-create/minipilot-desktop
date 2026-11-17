@@ -18,6 +18,8 @@ public sealed class Settings
     public decimal MaxLaunchSol { get; set; } = 0.04m;
     public decimal DailyCapSol { get; set; } = 0.12m;
     public decimal ReserveSol { get; set; } = 0.02m;
+    public bool AutoExitEnabled { get; set; }
+    public decimal ExitDropPercent { get; set; } = 30m;
     public decimal Slippage { get; set; } = 10m;
     public decimal PriorityFeeSol { get; set; } = 0.00001m;
     public int IntervalMinutes { get; set; } = 60;
@@ -35,6 +37,8 @@ public sealed class Settings
     {
         if (!Uri.TryCreate(RpcUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https")
             throw new InvalidOperationException("Enter an HTTPS Solana mainnet RPC URL.");
+        if (ExitDropPercent < 1 || ExitDropPercent > 99)
+            throw new InvalidOperationException("Choose an automatic exit drop between 1 and 99 percent.");
         if (BuySol <= 0 || BuySol > 100 || Sol.Lamports(BuySol) == 0)
             throw new InvalidOperationException("Initial buy must be greater than zero and at most 100 SOL.");
         if (MaxLaunchSol < BuySol || MaxLaunchSol > 101 || DailyCapSol < MaxLaunchSol)
@@ -87,6 +91,16 @@ public sealed class Operation
     public string Blockhash { get; set; } = "";
     public string Status { get; set; } = "Preparing";
     public string Error { get; set; } = "";
+    public decimal ExitPeakUsd { get; set; }
+    public bool ExitTriggered { get; set; }
+    public bool AutomaticSale { get; set; }
+    public bool ObserveExitPrice(decimal price, decimal percent)
+    {
+        if (price <= 0 || ExitTriggered) return false;
+        if (price > ExitPeakUsd) { ExitPeakUsd = price; return true; }
+        ExitTriggered = price <= ExitPeakUsd * ((100m - percent) / 100m);
+        return ExitTriggered;
+    }
     public string Promotion { get; set; } = "";
     public string TelegramStatus { get; set; } = "Disabled";
     public string XStatus { get; set; } = "Disabled";

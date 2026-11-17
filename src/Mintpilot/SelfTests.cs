@@ -26,6 +26,14 @@ public static class SelfTests
     {
         try
         {
+            var tracked = new Operation();
+            Check(!tracked.ObserveExitPrice(0, 30) && tracked.ExitPeakUsd == 0, "missing quote ignored");
+            Check(tracked.ObserveExitPrice(1m, 30) && !tracked.ExitTriggered, "first price establishes baseline");
+            Check(tracked.ObserveExitPrice(2m, 30) && tracked.ExitPeakUsd == 2m, "high trails upward");
+            Check(!tracked.ObserveExitPrice(1.41m, 30), "above threshold stays armed");
+            Check(tracked.ObserveExitPrice(1.4m, 30) && tracked.ExitTriggered, "exact threshold queues exit");
+            Check(!tracked.ObserveExitPrice(3m, 30) && tracked.ExitTriggered, "trigger survives rebound");
+            Throws(() => new Settings { ExitDropPercent = 100 }.Validate(), "invalid exit threshold");
             var seed = Convert.FromHexString("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60");
             using var key = Sol.Key(seed);
             Check(Convert.ToHexString(key.PublicKey.Export(KeyBlobFormat.RawPublicKey)).ToLowerInvariant() == "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a", "RFC8032 public key");
@@ -107,6 +115,28 @@ public static class SelfTests
                 restarted.State.Settings.DailyCapSol = 0.04m;
                 Throws(() => restarted.Launch(idea, [1]).GetAwaiter().GetResult(), "daily cap counts finalized spending");
                 Check(handler.Broadcasts == 1, "budget failure never broadcasts");
+                handler.TrackedMint = confirmed.Mint;
+                handler.Quote = 2m;
+                restarted.State.Settings.AutoExitEnabled = true;
+                restarted.Vault.Save();
+                Engine Sync()
+                {
+                    var app = new Engine(new Vault(vault.DirectoryPath), http);
+                    app.Poll().GetAwaiter().GetResult();
+                    return app;
+                }
+                var armed = Sync();
+                Check(armed.State.Operations.First().ExitPeakUsd == 2m && handler.Broadcasts == 1, "arming does not sell");
+                handler.Quote = null;
+                Check(!Sync().State.Operations.First().ExitTriggered, "missing quote cannot trigger");
+                handler.Quote = 1.4m; handler.Finalize = false;
+                var exiting = Sync();
+                Check(handler.FullSellRequests == 1 && handler.Broadcasts == 2 && exiting.State.Operations.Last().Pending, "threshold sells full mint position while launches paused");
+                Sync();
+                Check(handler.FullSellRequests == 1 && handler.Broadcasts == 2, "restart does not duplicate pending exit");
+                handler.Finalize = true; handler.Quantity = "0";
+                var flat = Sync();
+                Check(flat.State.Operations.Last().Status == "Confirmed" && !flat.State.Operations.First().ExitTriggered && handler.FullSellRequests == 1, "flat position clears exit after settlement");
                 var svg = Artwork.Render(idea);
                 Check(svg.Length > 100 && svg[0] == 137 && svg[1] == 80, "native PNG artwork");
             }
@@ -145,6 +175,10 @@ public static class SelfTests
     private sealed class FakeChain(string vaultPath) : HttpMessageHandler
     {
         public int Broadcasts;
+        public string TrackedMint = "";
+        public decimal? Quote;
+        public string Quantity = "1000";
+        public int FullSellRequests;
         public bool JournalChecked;
         public bool Finalize;
         private long _balance = 2_000_000_000;
@@ -154,11 +188,24 @@ public static class SelfTests
         {
             string host = request.RequestUri!.Host;
             if (host == "uploads.pinata.cloud") return Response(new { data = new { cid = "bafytest" } });
-            if (host == "api.dexscreener.com") return Response(Array.Empty<object>());
+            if (host == "api.dexscreener.com") return Response(Quote is decimal price ? new object[] { new { baseToken = new { address = TrackedMint }, priceUsd = price } } : Array.Empty<object>());
             using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
             var data = body.RootElement;
             if (host == "pumpportal.fun")
             {
+                if (data.GetProperty("action").GetString() == "sell")
+                {
+                    if (data.GetProperty("amount").GetString() != "100%" || data.GetProperty("mint").GetString() != TrackedMint)
+                        throw new InvalidDataException("Unexpected exit request.");
+                    FullSellRequests++;
+                    var raw = new List<byte> { 1 }; raw.AddRange(new byte[64]);
+                    raw.AddRange(new byte[] { 1, 0, 1, 3 });
+                    foreach (var address in new[] { data.GetProperty("publicKey").GetString()!, TrackedMint, Sol.Pump, Sol.SystemProgram })
+                        raw.AddRange(Sol.AddressBytes(address));
+                    raw.AddRange(new byte[] { 1, 2, 2, 1, 0, 24 }); raw.AddRange(Sol.Discriminator("sell"));
+                    raw.AddRange(BitConverter.GetBytes(1000UL)); raw.AddRange(BitConverter.GetBytes(100UL));
+                    return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(raw.ToArray()) };
+                }
                 var metadata = data.GetProperty("tokenMetadata");
                 var idea = new CoinIdea { Name = metadata.GetProperty("name").GetString()!, Symbol = metadata.GetProperty("symbol").GetString()! };
                 var tx = BuildCreate(data.GetProperty("publicKey").GetString()!, data.GetProperty("mint").GetString()!, idea, metadata.GetProperty("uri").GetString()!, true);
@@ -180,7 +227,7 @@ public static class SelfTests
                 "getBalance" => new { value = _balance },
                 "getSignatureStatuses" => new { value = new object?[] { Finalize ? new { confirmationStatus = "finalized", err = (object?)null } : null } },
                 "isBlockhashValid" => new { value = true },
-                "getTokenAccountsByOwner" => new { value = Array.Empty<object>() },
+                "getTokenAccountsByOwner" => new { value = TrackedMint.Length == 0 ? Array.Empty<object>() : new object[] { new { account = new { data = new { parsed = new { info = new { mint = TrackedMint, tokenAmount = new { uiAmountString = Quantity } } } } } } } },
                 "getTransaction" => new { meta = new { fee = 10000, preBalances = new[] { _pre }, postBalances = new[] { _post }, err = (object?)null } },
                 "simulateTransaction" => new { value = new { err = (object?)null, preBalances = new[] { _balance }, postBalances = new[] { _balance - 12500000 } } },
                 _ => throw new InvalidOperationException("Unexpected mocked RPC " + method)

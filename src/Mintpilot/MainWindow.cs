@@ -210,6 +210,7 @@ public sealed class MainWindow : Window
         public Operation Source = null!;
         public string Token { get; init; } = "";
         public string Status { get; init; } = "";
+        public string Exit { get; init; } = "";
         public string Holdings { get; init; } = "";
         public string Price { get; init; } = "";
         public string MarketCap { get; init; } = "";
@@ -225,6 +226,9 @@ public sealed class MainWindow : Window
             return new TokenRow
             {
                 Source = o, Token = o.Name + " · $" + o.Symbol, Status = o.Status,
+                Exit = !_engine.State.Settings.AutoExitEnabled ? "Off" : quantity <= 0 ? "No position" :
+                    o.ExitTriggered ? (_engine.State.Operations.Count(s => s.AutomaticSale && s.Mint == o.Mint) >= 3 && !_engine.State.Operations.Any(s => s.Pending && s.Mint == o.Mint) ? "Review remaining tokens" : "Exit triggered") :
+                    o.ExitPeakUsd > 0 ? "Trigger at $" + (o.ExitPeakUsd * ((100m - _engine.State.Settings.ExitDropPercent) / 100m)).ToString("G6") : "Awaiting price",
                 Holdings = _engine.BalanceLamports is null ? "Pending sync" : quantity.ToString("N2"),
                 Price = market?.PriceUsd > 0 ? "$" + market.PriceUsd.ToString("0.########") : "Unavailable",
                 MarketCap = market?.MarketCapUsd > 0 ? "$" + market.MarketCapUsd.ToString("N0") : "Unavailable",
@@ -232,7 +236,7 @@ public sealed class MainWindow : Window
                 Value = market?.PriceUsd > 0 ? "$" + (market.PriceUsd * quantity).ToString("N2") : "Unavailable"
             };
         }).ToList();
-        var grid = GridFor(rows.Cast<object>().ToList(), ("Token", "Token"), ("Result", "Status"), ("Holdings", "Holdings"), ("Price (USD)", "Price"), ("Market cap", "MarketCap"), ("24h volume", "Volume"), ("Held value", "Value"));
+        var grid = GridFor(rows.Cast<object>().ToList(), ("Token", "Token"), ("Result", "Status"), ("Holdings", "Holdings"), ("Auto exit", "Exit"), ("Price (USD)", "Price"), ("Market cap", "MarketCap"), ("24h volume", "Volume"), ("Held value", "Value"));
         Operation Selection() => (grid.SelectedItem as TokenRow)?.Source ?? throw new InvalidOperationException("Select a launch first.");
         body.Children.Add(Actions(Button("+ Launch a coin", LaunchDialog, true), Button("Sell remaining tokens", async () =>
         {
@@ -368,6 +372,11 @@ public sealed class MainWindow : Window
         var count = Field(form, "Maximum finalized/pending launches per UTC day", s.MaxDailyLaunches.ToString());
         var slippage = Field(form, "Requested trade slippage (%)", s.Slippage.ToString(CultureInfo.InvariantCulture));
         var priority = Field(form, "Priority fee (SOL)", s.PriorityFeeSol.ToString(CultureInfo.InvariantCulture));
+        form.Children.Add(Text("Automatic exits", 20, Brushes.White, FontWeights.SemiBold));
+        var autoExit = new CheckBox { Content = "Sell the full position when a coin drops from its observed high", IsChecked = s.AutoExitEnabled, Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 10) };
+        form.Children.Add(autoExit);
+        var drop = Field(form, "Drop from highest observed USD price (%)", s.ExitDropPercent.ToString(CultureInfo.InvariantCulture));
+        form.Children.Add(Text("Checks held launches about once a minute while Mintpilot is open, even with launches paused. The first quote sets the baseline. Disabling exits clears recorded highs and queued triggers.", 12, Muted));
         form.Children.Add(Text("AI generation", 20, Brushes.White, FontWeights.SemiBold));
         var provider = new ComboBox { ItemsSource = new[] { "Ollama", "OpenAI" }, SelectedItem = s.AiProvider, Padding = new Thickness(8), Margin = new Thickness(0, 6, 0, 10), Foreground = Brushes.Black };
         form.Children.Add(provider);
@@ -386,6 +395,7 @@ public sealed class MainWindow : Window
             static decimal D(TextBox t) => decimal.Parse(t.Text, CultureInfo.InvariantCulture);
             s.RpcUrl = rpc.Text.Trim(); s.PinataToken = pinata.Password.Trim(); s.BuySol = D(buy); s.MaxLaunchSol = D(cap); s.DailyCapSol = D(daily); s.ReserveSol = D(reserve);
             s.IntervalMinutes = int.Parse(interval.Text, CultureInfo.InvariantCulture); s.MaxDailyLaunches = int.Parse(count.Text, CultureInfo.InvariantCulture); s.Slippage = D(slippage); s.PriorityFeeSol = D(priority);
+            s.AutoExitEnabled = autoExit.IsChecked == true; s.ExitDropPercent = D(drop);
             s.AiProvider = provider.SelectedItem?.ToString() ?? "Ollama"; s.AiModel = model.Text.Trim(); s.OpenAiKey = aiKey.Password.Trim(); s.Theme = theme.Text.Trim();
             s.TelegramEnabled = telegram.IsChecked == true; s.TelegramToken = tKey.Password.Trim(); s.TelegramChat = tChat.Text.Trim();
             s.XEnabled = x.IsChecked == true; s.XConsumerKey = xKey.Password.Trim(); s.XConsumerSecret = xSecret.Password.Trim(); s.XAccessToken = xToken.Password.Trim(); s.XAccessSecret = xAccessSecret.Password.Trim();

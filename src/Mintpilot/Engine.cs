@@ -66,7 +66,11 @@ public sealed class Engine
     public async Task SaveSettings(Settings settings)
     {
         settings.Validate(); await _gate.WaitAsync();
-        try { Writable(); State.Settings = settings; Persist(); Status = "Settings saved"; }
+        try { Writable();
+            if (!settings.AutoExitEnabled && State.Settings.AutoExitEnabled)
+                foreach (var launch in State.Operations.Where(o => o.Kind == "Create"))
+                { launch.ExitPeakUsd = 0; launch.ExitTriggered = false; }
+            State.Settings = settings; Persist(); Status = "Settings saved"; }
         finally { _gate.Release(); Changed?.Invoke(); }
     }
     public async Task Poll()
@@ -87,12 +91,14 @@ public sealed class Engine
             if (DateTimeOffset.UtcNow - _lastMarkets > TimeSpan.FromMinutes(1))
             {
                 Holdings = await _services.Holdings(rpc, Address); _lastMarkets = DateTimeOffset.UtcNow;
+                Dictionary<string, Market>? fresh = null;
                 try
                 {
-                    Markets = await _services.Markets(State.Operations.Where(o => o.Kind == "Create" && o.Status == "Confirmed").Select(o => o.Mint));
+                    Markets = fresh = await _services.Markets(State.Operations.Where(o => o.Kind == "Create" && o.Status == "Confirmed").Select(o => o.Mint));
                     MarketStatus = "DexScreener · " + DateTime.Now.ToShortTimeString();
                 }
                 catch { MarketStatus = "Market feed unavailable · last successful values retained"; }
+                if (State.Settings.AutoExitEnabled && await MonitorExits(rpc, fresh)) return;
             }
             await PublishQueued();
             if (Running && NextLaunch <= DateTimeOffset.UtcNow && !State.Operations.Any(o => o.Pending))
@@ -252,13 +258,22 @@ public sealed class Engine
         Pause(); await _gate.WaitAsync();
         try
         {
+            var rpc = Rpc; await rpc.Mainnet(); await SellCore(launch, rpc, false);
+        }
+        finally { _gate.Release(); Changed?.Invoke(); }
+    }
+    private async Task SellCore(Operation launch, Rpc rpc, bool automatic)
+    {
             Writable();
             if (launch.Kind != "Create" || launch.Status != "Confirmed") throw new InvalidOperationException("Select a finalized launch.");
             if (State.Operations.Any(o => o.Pending)) throw new InvalidOperationException("Wait for the pending transaction to settle.");
-            var rpc = Rpc; await rpc.Mainnet();
+            
             var settings = State.Settings;
-            var op = new Operation { Kind = "Sell", Name = launch.Name, Symbol = launch.Symbol, Mint = launch.Mint, LimitLamports = Sol.Lamports(settings.MaxLaunchSol) };
-            var tx = await _services.Build(settings, new
+            var op = new Operation { Kind = "Sell", AutomaticSale = automatic, Name = launch.Name, Symbol = launch.Symbol, Mint = launch.Mint, LimitLamports = Sol.Lamports(settings.MaxLaunchSol) };
+            State.Operations.Add(op); Persist();
+            try
+            {
+                var tx = await _services.Build(settings, new
             {
                 publicKey = Address, action = "sell", mint = launch.Mint, denominatedInSol = "false", amount = "100%",
                 slippage = settings.Slippage, priorityFee = settings.PriorityFeeSol, pool = "auto"
@@ -266,10 +281,42 @@ public sealed class Engine
             tx.Audit(await tx.ResolveKeys(rpc), Address, op, null, 0);
             op.Signature = tx.Sign(State.Seed); op.Blockhash = tx.Blockhash; op.Raw = Convert.ToBase64String(tx.Raw);
             await rpc.Simulate(tx, Address, op.LimitLamports);
-            State.Operations.Add(op); Persist(); await Submit(rpc, tx, op);
-        }
-        finally { _gate.Release(); Changed?.Invoke(); }
+            await Submit(rpc, tx, op);
+            }
+            catch (Exception ex)
+            {
+                if (!op.Pending) { op.Status = "Failed"; op.Error = ex.Message; Persist(); }
+                throw;
+            }
     }
+
+    private async Task<bool> MonitorExits(Rpc rpc, Dictionary<string, Market>? fresh)
+    {
+        Writable();
+        var launches = State.Operations.Where(o => o.Kind == "Create" && o.Status == "Confirmed").ToList();
+        bool changed = false;
+        Operation? next = null;
+        foreach (var launch in launches)
+        {
+            if (Holdings.GetValueOrDefault(launch.Mint) <= 0)
+            {
+                if (launch.ExitPeakUsd != 0 || launch.ExitTriggered)
+                { launch.ExitPeakUsd = 0; launch.ExitTriggered = false; changed = true; }
+                continue;
+            }
+            if (fresh != null && fresh.TryGetValue(launch.Mint, out var market))
+                changed |= launch.ObserveExitPrice(market.PriceUsd, State.Settings.ExitDropPercent);
+            if (!launch.ExitTriggered || next != null) continue;
+            var attempts = State.Operations.Where(o => o.AutomaticSale && o.Mint == launch.Mint).ToList();
+            if (attempts.Count >= 3 || attempts.Any(o => DateTimeOffset.UtcNow - o.CreatedUtc < TimeSpan.FromMinutes(5))) continue;
+            next = launch;
+        }
+        if (changed) Persist();
+        if (next == null || State.Operations.Any(o => o.Pending)) return false;
+        await SellCore(next, rpc, true);
+        return true;
+    }
+
     private async Task PublishQueued()
     {
         foreach (var op in State.Operations.Where(o => o.Kind == "Create" && o.Status == "Confirmed"))
